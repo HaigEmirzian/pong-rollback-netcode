@@ -1,26 +1,27 @@
 import java.util.ArrayList;
 import processing.net.*;
 
+static final int WIDTH = 640;
+static final int HEIGHT = 480;
+static final int INPUT_BUFFER_SIZE = 1000;
+static final int WIN_SCORE = 5;
+
 // Networking
 Server server;
 Client client;
 
-static final int WIDTH = 640;
-static final int HEIGHT = 480;
-
-static final int INPUT_BUFFER_SIZE = 1000;
-
-static final int WIN_SCORE = 5;
-
+// Global time variable
 int time = 0;
 
 int ballX, ballY, ballSpeedX, ballSpeedY;
 int player1Y, player2Y;
 int playerSpeed = 5;
-int paddleWidth = 10, paddleHeight = 80;
+int paddleWidth = 10
+int paddleHeight = 80;
 int paddleDist = 40;
 int ballSize = 20;
-boolean isServer = true;  // True if this instance is the server
+
+boolean isHost = true;  // True if this instance is the host
 
 int input1 = 0;
 int input2 = 0;
@@ -30,7 +31,6 @@ int score2 = 0;
 
 long startTime = 0;
 
-//boolean playing = false;
 // 0 - Menu
 // 1 - Playing
 // 2 - Player 1 Win
@@ -65,17 +65,17 @@ class GameState {
 // Called once
 void setup() {
   size(640, 480);
-  if (isServer) { // Start Server
+  if (isHost) { // Start Host
     server = new Server(this, 5201);
   } else { // Start Client
     client = new Client(this, "127.0.0.1", 5201);
     
-    // Wait to receive the start time from the server
+    // Wait to receive the start time from the host
     while (client.available() == 0) { continue; }
     startTime = Long.parseLong(client.readString().trim());
   }
   
-  // Initalize predictions
+  // Initalize predictions to 0
   for(int i = 0; i < INPUT_BUFFER_SIZE; i++) {
     userInputs.add(0);
     predictedInputs.add(0); 
@@ -84,13 +84,12 @@ void setup() {
 
 // Called when a client connects
 void serverEvent(Server someServer, Client someClient) {
-  if (isServer) {
+  if (isHost) {
     // Send start time to the client
     startTime = System.currentTimeMillis() + 5000;
      server.write(startTime + "\n");
   }
 }
-
 
 // Called every frame
 void draw() {
@@ -99,7 +98,6 @@ void draw() {
   // Wait for the start time before drawing anything
   if (gameState == 0) {
     if (System.currentTimeMillis() < startTime) { // Continue waiting
-      //println(System.currentTimeMillis() - startTime + "");
       textSize(50);
       text((int)((startTime - System.currentTimeMillis())/1000.0f) + 1 + "", WIDTH/2, HEIGHT/2, WIDTH/2, HEIGHT/2);  // Text wraps within text box
       return;
@@ -117,24 +115,23 @@ void draw() {
       return;
     }
   }
-  // Game is over and Player 1 won
-  else if (gameState == 2) {
+  else if (gameState == 2) { // Game is over and Player 1 won
     textSize(20);
     text("Player 1 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
     return;
   }
-  // Game is over and Player 2 won
-  else if (gameState == 3) {
+  else if (gameState == 3) { // Game is over and Player 2 won
     textSize(20);
     text("Player 2 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
     return;
   }
 
   // ----- Retrieve Remote inputs -----
-  // Server: read from socket
-  if (isServer && server.available() != null) {
+  // Host: read from socket
+  if (isHost && server.available() != null) {
     Client thisClient = server.available();
     String data = thisClient.readString();
+
     if (data != null) {
       print("Got remote intput: " + data);
       ArrayList<Integer[]> remoteInput = parseInput(data);
@@ -142,12 +139,13 @@ void draw() {
     }
   }
   // Networking - Client
-  else if (!isServer && client.available() > 0) {
+  else if (!isHost && client.available() > 0) {
     String data = client.readString();
+    
     if (data != null) {
       println("Got remote intput: " + data);
       ArrayList<Integer[]> remoteInput = parseInput(data);
-      handleRemoteInput(remoteInput);  // Apply remote inputs from server
+      handleRemoteInput(remoteInput);  // Apply remote inputs from host
     }
   }
   
@@ -155,43 +153,20 @@ void draw() {
   // Get current player
   if (keyPressed) {
     if (key == 'w') {
-      if (isServer) {
-        //input1 = -1;
-        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, -1);
-      }
-      else {
-        //input2 = -1;
-        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, -1);
-      }
-       
+      userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, -1);
       sendLocalInput(time, -1);
     } 
     else if (key == 's') {
-      if (isServer) {
-        //input1 = 1;
-        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, 1);
-      }
-      else {
-        input2 = 1;
-        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, 1);
-      }
-      
+      userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, 1);
       sendLocalInput(time, 1);
     }
   }
   else {
-    if (isServer) {
-        input1 = 0;
-      }
-      else {
-         input2 = 0; 
-      }
-      
-      sendLocalInput(time, 0);
+    sendLocalInput(time, 0);
   }
   
   // Get other player
-  if (isServer) {
+  if (isHost) {
     input1 = userInputs.get(time % INPUT_BUFFER_SIZE);
     input2 = predictedInputs.get(time % INPUT_BUFFER_SIZE);
   }
@@ -265,10 +240,10 @@ void handleRemoteInput(ArrayList<Integer[]> remoteInputs) {
   }
 }
 
-// Send local input to remote client/server
+// Send local input to remote client/host
 void sendLocalInput(int time, int i) {
   String input = time + "," + i + ",";
-  if (isServer) {
+  if (isHost) {
     server.write(input + "\n");
   } else {
     client.write(input + "\n");
@@ -306,6 +281,7 @@ void updateGame() {
     resetGame(); 
   }
 
+  // Check if there is a winner
   if (score1 >= WIN_SCORE)
     gameState = 2;
   else if (score2 >= WIN_SCORE)
@@ -315,7 +291,7 @@ void updateGame() {
   time++;
 }
 
+// Save the current game state
 void saveGameState() {
-  // Save the current game state
   stateHistory.add(new GameState(time, false, ballX, ballY, player1Y, player2Y));
 }
