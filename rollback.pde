@@ -1,4 +1,4 @@
-import java.util.ArrayList; //<>//
+import java.util.ArrayList;
 import processing.net.*;
 
 // Networking
@@ -8,12 +8,17 @@ Client client;
 static final int WIDTH = 640;
 static final int HEIGHT = 480;
 
+static final int INPUT_BUFFER_SIZE = 1000;
+
+static final int WIN_SCORE = 5;
+
 int time = 0;
 
 int ballX, ballY, ballSpeedX, ballSpeedY;
 int player1Y, player2Y;
 int playerSpeed = 5;
 int paddleWidth = 10, paddleHeight = 80;
+int paddleDist = 40;
 int ballSize = 20;
 boolean isServer = true;  // True if this instance is the server
 
@@ -24,15 +29,21 @@ int score1 = 0;
 int score2 = 0;
 
 long startTime = 0;
-boolean playing = false;
+
+//boolean playing = false;
+// 0 - Menu
+// 1 - Playing
+// 2 - Player 1 Win
+// 3 - Player 2 Win
+int gameState = 0;
 
 int framesBack = 10;
 
 // History buffer for rollback
 ArrayList<GameState> stateHistory = new ArrayList<GameState>();
 
-ArrayList<Integer> userInputs = new ArrayList<Integer>(10000);
-ArrayList<Integer> predictedInputs = new ArrayList<Integer>(10000);
+ArrayList<Integer> userInputs = new ArrayList<Integer>(INPUT_BUFFER_SIZE);
+ArrayList<Integer> predictedInputs = new ArrayList<Integer>(INPUT_BUFFER_SIZE);
 
 // Class to represent the game state at a given frame
 class GameState {
@@ -65,7 +76,7 @@ void setup() {
   }
   
   // Initalize predictions
-  for(int i = 0; i < 100000; i++) {
+  for(int i = 0; i < INPUT_BUFFER_SIZE; i++) {
     userInputs.add(0);
     predictedInputs.add(0); 
   }
@@ -86,7 +97,7 @@ void draw() {
   background(0);
   
   // Wait for the start time before drawing anything
-  if (!playing) { //<>//
+  if (gameState == 0) {
     if (System.currentTimeMillis() < startTime) { // Continue waiting
       //println(System.currentTimeMillis() - startTime + "");
       textSize(50);
@@ -94,7 +105,7 @@ void draw() {
       return;
     }
     else if (startTime > 0){ // Start the game
-      playing = true;
+      gameState = 1;
       time = 0;
       resetGame();
     }
@@ -106,7 +117,19 @@ void draw() {
       return;
     }
   }
-  
+  // Game is over and Player 1 won
+  else if (gameState == 2) {
+    textSize(20);
+    text("Player 1 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+    return;
+  }
+  // Game is over and Player 2 won
+  else if (gameState == 3) {
+    textSize(20);
+    text("Player 2 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+    return;
+  }
+
   // ----- Retrieve Remote inputs -----
   // Server: read from socket
   if (isServer && server.available() != null) {
@@ -134,11 +157,11 @@ void draw() {
     if (key == 'w') {
       if (isServer) {
         //input1 = -1;
-        userInputs.set(time + framesBack, -1);
+        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, -1);
       }
       else {
         //input2 = -1;
-        userInputs.set(time + framesBack, -1);
+        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, -1);
       }
        
       sendLocalInput(time, -1);
@@ -146,11 +169,11 @@ void draw() {
     else if (key == 's') {
       if (isServer) {
         //input1 = 1;
-        userInputs.set(time + framesBack, 1);
+        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, 1);
       }
       else {
         input2 = 1;
-        userInputs.set(time + framesBack, 1);
+        userInputs.set((time + framesBack) % INPUT_BUFFER_SIZE, 1);
       }
       
       sendLocalInput(time, 1);
@@ -167,17 +190,19 @@ void draw() {
       sendLocalInput(time, 0);
   }
   
-  //println(predictedInputs);
-  
   // Get other player
   if (isServer) {
-    input1 = userInputs.get(time);
-    input2 = predictedInputs.get(time);
+    input1 = userInputs.get(time % INPUT_BUFFER_SIZE);
+    input2 = predictedInputs.get(time % INPUT_BUFFER_SIZE);
   }
   else {
-    input1 = predictedInputs.get(time);
-    input2 = userInputs.get(time);
+    input1 = predictedInputs.get(time % INPUT_BUFFER_SIZE);
+    input2 = userInputs.get(time % INPUT_BUFFER_SIZE);
   }
+
+  // Reset past values to 0
+  userInputs.set(time % INPUT_BUFFER_SIZE, 0);
+  predictedInputs.set(time % INPUT_BUFFER_SIZE, 0);
   
   // ----- Update Game -----
   updateGame();
@@ -190,8 +215,8 @@ void draw() {
   ellipse(ballX, ballY, ballSize, ballSize);
   
   // Draw paddles
-  rect(30, player1Y, paddleWidth, paddleHeight);
-  rect(width - 50, player2Y, paddleWidth, paddleHeight);
+  rect(paddleDist, player1Y, paddleWidth, paddleHeight);
+  rect(width - paddleDist, player2Y, paddleWidth, paddleHeight);
 }
 
 void rollbackTo(GameState oldState) {
@@ -226,18 +251,16 @@ ArrayList<Integer[]> parseInput(String data) {
 }
 
 void handleRemoteInput(ArrayList<Integer[]> remoteInputs) {
-  for(Integer[] remoteInput : remoteInputs) { //<>//
+  for(Integer[] remoteInput : remoteInputs) {
     int t = remoteInput[0];
     int newInput = remoteInput[1];
-    int oldInput = predictedInputs.get(t + framesBack);
+    int oldInput = predictedInputs.get((t + framesBack) % INPUT_BUFFER_SIZE);
     
     if (oldInput != newInput) {
-      predictedInputs.set(t + framesBack, newInput);  
+      predictedInputs.set((t + framesBack) % INPUT_BUFFER_SIZE, newInput);  
       
-      if (time + framesBack < t) {
-          println("rolleback");
-         rollbackTo(stateHistory.get(t));
-      }
+      if ((time + framesBack) < t)
+        rollbackTo(stateHistory.get(t));
     }
   }
 }
@@ -257,7 +280,7 @@ void updateGame() {
   ballX += ballSpeedX;
   ballY += ballSpeedY;
 
-  if (ballY <= 0 || ballY >= height) {
+  if (ballY - ballSize/2 <= 0 || ballY + ballSize/2 >= height) {
     ballSpeedY *= -1;
   }
 
@@ -265,11 +288,11 @@ void updateGame() {
   player2Y += playerSpeed * input2;
   
   // Ball collision with paddles
-  if (ballX <= 40 && ballY > player1Y && ballY < player1Y + paddleHeight) {
+  if (ballX <= paddleDist + paddleWidth && ballY > player1Y && ballY < player1Y + paddleHeight) {
     ballSpeedX *= -1;
   }
   
-  if (ballX >= width - 40 && ballY > player2Y && ballY < player2Y + paddleHeight) {
+  if (ballX >= width - paddleDist - paddleWidth && ballY > player2Y && ballY < player2Y + paddleHeight) {
     ballSpeedX *= -1;
   }
   
@@ -282,6 +305,11 @@ void updateGame() {
     score1++;
     resetGame(); 
   }
+
+  if (score1 >= WIN_SCORE)
+    gameState = 2;
+  else if (score2 >= WIN_SCORE)
+    gameState = 3;
   
   saveGameState();
   time++;
