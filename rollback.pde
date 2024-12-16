@@ -161,13 +161,30 @@ void draw() {
     }
   }
   else if (gameState == 2) { // Game is over and Player 1 won
+    textSize(40);
+    text("Player 1 Wins!", 50, HEIGHT/2, WIDTH, HEIGHT);
     textSize(20);
-    text("Player 1 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+    text("Thank you for playing", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+
+    // Host Button
+    fill(125);
+    rect(50, HEIGHT/2+100, 100, 40);
+    textSize(20);
+    fill(255);
+    text("Menu", 65, HEIGHT/2+115, 50, 30);
     return;
   }
   else if (gameState == 3) { // Game is over and Player 2 won
+    text("Player 2 Wins!", 50, HEIGHT/2, WIDTH, HEIGHT);
     textSize(20);
-    text("Player 2 wins!", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+    text("Thank you for playing", 50, HEIGHT/2 + 50, WIDTH, HEIGHT);
+
+    // Host Button
+    fill(125);
+    rect(50, HEIGHT/2+100, 100, 40);
+    textSize(20);
+    fill(255);
+    text("Menu", 65, HEIGHT/2+115, 50, 30);
     return;
   }
 
@@ -327,10 +344,14 @@ void updateGame() {
   }
 
   // Check if there is a winner
-  if (score1 >= WIN_SCORE)
+  if (score1 >= WIN_SCORE) {
     gameState = 2;
-  else if (score2 >= WIN_SCORE)
+    score1 = 0;
+  }
+  else if (score2 >= WIN_SCORE){
     gameState = 3;
+    score2 = 0;
+  }
   
   saveGameState();
   time++;
@@ -362,6 +383,16 @@ void mousePressed() {
 
   // Waiting for Connection Buttons
   else if (gameState == 4) {
+    if (mouseX >= 50 && mouseX <= 150 && mouseY >= HEIGHT/2+100 && mouseY <= HEIGHT/2+140) {
+      gameState = 0;
+      if (isHost)
+        server.stop();
+      else 
+        client.stop();
+    }
+  }
+
+  else if (gameState == 2) {
     if (mouseX >= 50 && mouseX <= 150 && mouseY >= HEIGHT/2+100 && mouseY <= HEIGHT/2+140) {
       gameState = 0;
       if (isHost)
