@@ -3,8 +3,8 @@
 1. Download Processing (See below)
 2. Run Processing and open the rollback.pde file
 3. Use File>New to start a second Processing instance
-4. Copy and paste the rollback.pde code the second window
-5. Run the code on both instances
+4. Copy and paste the rollback.pde code into the second window
+5. Run both processing instances
 6. On one window, click the host button
 	-  Setup is done using UDP sockets so this must be done first
 7. On the other window, click the connect button
